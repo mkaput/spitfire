@@ -1128,24 +1128,46 @@ defmodule Spitfire do
           nl -> [newlines: nl]
         end
 
-      parser = eat_at(parser, [:eol, :";"], 1)
+      has_leading_semicolon = peek_token_skip_eol(parser) == :";"
+
+      parser = eat_eoe_at(parser, 1)
       old_nesting = parser.nesting
       parser = Map.put(parser, :nesting, 0)
 
       {exprs, parser} =
-        while2 peek_token(parser) not in [:end, :eof, :")", :block_identifier] <- parser do
-          parser = parser |> next_token() |> eat_eoe()
-          {ast, parser} = parse_expression(parser, @lowest, false, false, true)
+        if has_leading_semicolon do
+          while2 not stab_state_set?(parser) and peek_token(parser) not in [:end, :eof, :")", :block_identifier, :->] <-
+                   parser do
+            parser = next_token(parser)
 
-          eoe = peek_eoe(parser)
+            {ast, parser} = parse_stab_aware_expression(parser)
 
-          parser = eat_eoe_at(parser, 1)
+            if stab_state_set?(parser) do
+              {:filter, {nil, next_token(parser)}}
+            else
+              eoe = peek_eoe(parser)
+              ast = push_eoe(ast, eoe)
+              parser = eat_eoe_at(parser, 1)
 
-          ast = push_eoe(ast, eoe)
+              {ast, eat_eoe(parser)}
+            end
+          end
+        else
+          while2 peek_token(parser) not in [:end, :eof, :")", :block_identifier] <- parser do
+            parser = parser |> next_token() |> eat_eoe()
+            {ast, parser} = parse_expression(parser, @lowest, false, false, true)
 
-          {ast, parser}
+            eoe = peek_eoe(parser)
+
+            parser = eat_eoe_at(parser, 1)
+
+            ast = push_eoe(ast, eoe)
+
+            {ast, parser}
+          end
         end
 
+      exprs = if has_leading_semicolon, do: [nil | exprs], else: exprs
       rhs = build_stab_rhs(exprs)
 
       ast =
@@ -1153,7 +1175,7 @@ defmodule Spitfire do
 
       parser = Map.put(parser, :nesting, old_nesting)
 
-      {ast, parser}
+      {ast, eat_eoe(parser)}
     end
   end
 
@@ -2180,7 +2202,8 @@ defmodule Spitfire do
 
                     {ast, parser} =
                       cond do
-                        current_token(parser) == :-> and peek_token(parser) in [:")", :end, :eof] ->
+                        current_token(parser) == :-> and
+                            peek_token(parser) in [:->, :")", :end, :eof] ->
                           parser = next_token(parser)
                           {ast, parser}
 

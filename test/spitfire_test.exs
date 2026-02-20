@@ -2320,6 +2320,32 @@ defmodule SpitfireTest do
       assert Spitfire.parse("x...<-y") == s2q("x...<-y")
       assert Spitfire.parse("x...::y") == s2q("x...::y")
       assert Spitfire.parse("x... when y") == s2q("x... when y")
+
+      # Leading semicolon after newline in fn stab bodies
+      assert_conforms("fn -> \n;a end")
+      assert_conforms("fn -> \n;a; b end")
+      assert_conforms("foo(fn -> \n;a end)")
+      assert_conforms("(fn -> \n;a end).()")
+      assert_conforms("bar = fn -> \n;a end")
+
+      # Multi-clause fn with leading semicolon/newline in prior clause body
+      assert_conforms("""
+      fn
+        -> 
+      ;a
+        -> :ok
+      end
+      """)
+
+      # Leading semicolon/newline followed by comma in clause bodies
+      assert_conforms("with x <- 1 do :ok else _ -> \n;a, b end")
+
+      assert_conforms("""
+      case x do
+      _ -> 
+      ;a, b
+      end
+      """)
     end
   end
 
