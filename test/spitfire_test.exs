@@ -1,6 +1,8 @@
 defmodule SpitfireTest do
   use ExUnit.Case, async: true
 
+  import Spitfire.Assertions, only: [assert_conforms: 1]
+
   doctest Spitfire
 
   describe "valid code" do
